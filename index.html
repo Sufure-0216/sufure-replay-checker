@@ -7,25 +7,36 @@
 
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="apple-touch-icon" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+  <div class="topbar">
+    <div class="lang-toggle" id="langToggle">
+      <button data-lang="ja" class="active">日本語</button>
+      <button data-lang="en">EN</button>
+    </div>
+  </div>
+
   <div class="container">
-    <h1>🎯 Sufure's Replay Checker</h1>
+    <div class="brandmark">🏜️</div>
+    <h1 data-i18n="title">Sufure's Replay Checker</h1>
 
     <div class="authbar" id="authbar">
-      <span id="authStatus">未ログイン</span>
-      <button id="loginBtn" class="secondary">Googleでログイン</button>
-      <button id="logoutBtn" class="secondary" style="display:none;">ログアウト</button>
-      <button id="myProfileBtn" style="display:none;">マイプロフィール</button>
+      <span id="authStatus" data-i18n="authLoggedOut">未ログイン</span>
+      <button id="loginBtn" class="secondary" data-i18n="loginBtn">Googleでログイン</button>
+      <button id="logoutBtn" class="secondary" style="display:none;" data-i18n="logoutBtn">ログアウト</button>
+      <button id="myProfileBtn" style="display:none;" data-i18n="myProfileBtn">マイプロフィール</button>
     </div>
 
     <!-- Main tabs -->
     <div class="tabs">
-      <button onclick="showTab('upload')">アップロード</button>
-      <button onclick="showTab('rankings')">ランキング</button>
-      <button onclick="showTab('profiles')">プロフィール</button>
+      <button onclick="showTab('upload')" data-i18n="tabUpload">アップロード</button>
+      <button onclick="showTab('rankings')" data-i18n="tabRankings">ランキング</button>
+      <button onclick="showTab('profiles')" data-i18n="tabProfiles">プロフィール</button>
     </div>
 
     <!-- Upload tab -->
@@ -33,19 +44,19 @@
       <div class="upload">
         <input type="file" id="fileInput" accept=".replay" />
 
-        <label class="field-label">記録するプロフィール（任意）</label>
+        <label class="field-label" data-i18n="uploadProfileLabel">記録するプロフィール（任意）</label>
         <select id="profileSelect">
-          <option value="">プロフィールを選ばない</option>
+          <option value="" data-i18n="noProfileOption">プロフィールを選ばない</option>
         </select>
 
-        <button id="parseBtn">Analyze Replay</button>
+        <button id="parseBtn" data-i18n="analyzeBtn">Analyze Replay</button>
       </div>
 
       <div class="replay-help">
-        <h3>📁 Where to find your Fortnite replays</h3>
-        <p>Fortnite saves replay files to the following default location on Windows:</p>
+        <h3 data-i18n="replayHelpTitle">📁 Where to find your Fortnite replays</h3>
+        <p data-i18n="replayHelpP1">Fortnite saves replay files to the following default location on Windows:</p>
         <code>C:\Users\USERNAME\AppData\Local\FortniteGame\Saved\Demos</code>
-        <p class="hint">
+        <p class="hint" data-i18n="replayHelpHint">
           Replace <strong>USERNAME</strong> with your Windows username.<br>
           If you don't see <em>AppData</em>, enable <strong>"Show hidden files"</strong>.
         </p>
@@ -58,19 +69,19 @@
     <!-- Rankings tab -->
     <div id="rankings" class="tab">
       <div class="subtabs">
-        <button class="subtab-btn active" data-mode="overall" onclick="showRankingMode('overall')">🏆 総合</button>
-        <button class="subtab-btn" data-mode="weapon" onclick="showRankingMode('weapon')">🔫 武器別</button>
-        <button class="subtab-btn" data-mode="mode" onclick="showRankingMode('mode')">🎮 モード別</button>
-        <button class="subtab-btn" data-mode="daily" onclick="showRankingMode('daily')">📅 デイリー</button>
+        <button class="subtab-btn active" data-mode="overall" onclick="showRankingMode('overall')" data-i18n="subtabOverall">🏆 総合</button>
+        <button class="subtab-btn" data-mode="weapon" onclick="showRankingMode('weapon')" data-i18n="subtabWeapon">🔫 武器別</button>
+        <button class="subtab-btn" data-mode="mode" onclick="showRankingMode('mode')" data-i18n="subtabMode">🎮 モード別</button>
+        <button class="subtab-btn" data-mode="daily" onclick="showRankingMode('daily')" data-i18n="subtabDaily">📅 デイリー</button>
       </div>
 
       <div id="weaponFilterWrap" class="filter-wrap" style="display:none;">
-        <label class="field-label">武器を選択</label>
+        <label class="field-label" data-i18n="weaponFilterLabel">武器を選択</label>
         <select id="weaponFilter"></select>
       </div>
 
       <div id="modeFilterWrap" class="filter-wrap" style="display:none;">
-        <label class="field-label">モードを選択</label>
+        <label class="field-label" data-i18n="modeFilterLabel">モードを選択</label>
         <select id="modeFilter"></select>
       </div>
 
@@ -81,10 +92,10 @@
           <thead>
             <tr>
               <th>#</th>
-              <th>Distance (m)</th>
-              <th>Player</th>
-              <th>Weapon</th>
-              <th>Mode</th>
+              <th data-i18n="thDistance">Distance (m)</th>
+              <th data-i18n="thPlayer">Player</th>
+              <th data-i18n="thWeapon">Weapon</th>
+              <th data-i18n="thMode">Mode</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -95,46 +106,50 @@
     <!-- Profiles tab -->
     <div id="profiles" class="tab">
       <div id="profileList">
-        <h2>👤 プロフィール一覧</h2>
-        <button id="newProfileBtn">＋ 新しいプロフィールを作る</button>
+        <h2 data-i18n="profileListTitle">👤 プロフィール一覧</h2>
+        <p class="note" id="profileCreateNote"></p>
+        <button id="newProfileBtn" data-i18n="newProfileBtn">＋ 新しいプロフィールを作る</button>
         <div id="profileCards" class="results"></div>
       </div>
 
       <div id="profileForm" class="card" style="display:none;">
-        <h2>プロフィールを作成 / 編集</h2>
-        <label class="field-label">名前</label>
+        <h2 data-i18n="profileFormTitle">プロフィールを作成 / 編集</h2>
+
+        <label class="field-label" data-i18n="profileNameLabel">名前（ID）</label>
         <input type="text" id="profileName" placeholder="表示名" />
-        <label class="field-label">アイコン画像URL（任意）</label>
-        <input type="text" id="profileIcon" placeholder="https://..." />
-        <label class="field-label">X（Twitter）リンク（任意）</label>
-        <input type="text" id="profileTwitter" placeholder="https://x.com/yourid" />
-        <label class="field-label">BIO（任意）</label>
+        <p class="note" data-i18n="profileNameNote">⚠️ 名前は作成時のみ設定でき、後から変更できません。</p>
+
+        <label class="field-label" data-i18n="profileTwitterLabel">X（Twitter）リンク（任意）</label>
+        <input type="text" id="profileTwitter" placeholder="https://x.com/Sufr3_" />
+
+        <label class="field-label" data-i18n="profileBioLabel">BIO（任意）</label>
         <textarea id="profileBio" rows="3" placeholder="自己紹介"></textarea>
+
         <div class="form-actions">
-          <button id="saveProfileBtn">保存</button>
-          <button id="cancelProfileBtn" class="secondary">キャンセル</button>
+          <button id="saveProfileBtn" data-i18n="saveProfileBtn">保存</button>
+          <button id="cancelProfileBtn" class="secondary" data-i18n="cancelProfileBtn">キャンセル</button>
         </div>
       </div>
 
       <div id="profileDetail" style="display:none;">
-        <button id="backToListBtn">← 一覧に戻る</button>
+        <button id="backToListBtn" data-i18n="backToListBtn">← 一覧に戻る</button>
         <div class="card" id="profileDetailCard"></div>
-        <h2>📜 記録一覧</h2>
+        <h2 data-i18n="historyTitle">📜 記録一覧</h2>
         <div class="leaderboard-container">
           <table id="profile-history-table">
             <thead>
               <tr>
-                <th>Distance (m)</th>
-                <th>Weapon</th>
-                <th>Mode</th>
-                <th>種別</th>
-                <th>日時</th>
+                <th data-i18n="thDistance">Distance (m)</th>
+                <th data-i18n="thWeapon">Weapon</th>
+                <th data-i18n="thMode">Mode</th>
+                <th data-i18n="thType">種別</th>
+                <th data-i18n="thDate">日時</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
-        <button id="editProfileBtn">プロフィールを編集</button>
+        <button id="editProfileBtn" data-i18n="editProfileBtn">プロフィールを編集</button>
       </div>
     </div>
 
