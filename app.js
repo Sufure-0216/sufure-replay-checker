@@ -79,7 +79,7 @@ const I18N = {
     historyTitle: "📜 記録一覧",
     editProfileBtn: "プロフィールを編集",
 
-    rankOverallTitle: "🏆 総合ランキング（最遠キル）",
+    rankOverallTitle: "🏆 総合ランキング（ラストキル）",
     rankWeaponTitle: "🔫 武器別ランキング",
     rankModeTitle: "🎮 モード別ランキング",
     rankDailyTitle: "📅 デイリーランキング（本日）",
@@ -146,7 +146,7 @@ const I18N = {
     historyTitle: "📜 History",
     editProfileBtn: "Edit profile",
 
-    rankOverallTitle: "🏆 Overall Ranking (Furthest Kill)",
+    rankOverallTitle: "🏆 Overall Ranking (Last Kill)",
     rankWeaponTitle: "🔫 Ranking by Weapon",
     rankModeTitle: "🎮 Ranking by Mode",
     rankDailyTitle: "📅 Daily Ranking (Today)",
@@ -239,6 +239,7 @@ parseBtn.addEventListener("click", async () => {
     const parsed = JSON.parse(data.output);
     renderResults(parsed);
     await saveKills(parsed);
+    allFinalCache = null; // 新しい記録をランキングにすぐ反映させる
   } catch (err) {
     results.innerHTML = `<div class="card">❌ ${t("parseError")}${err.message}</div>`;
   }
@@ -307,26 +308,26 @@ async function saveKills(parsed) {
     ? profileSelect.options[profileSelect.selectedIndex].textContent
     : null;
 
-  const entries = [];
-  if (parsed.furthest) entries.push({ ...parsed.furthest, killType: "furthest" });
-  if (parsed.final) entries.push({ ...parsed.final, killType: "final" });
+  // ランキング/記録として保存するのは「ラストキル」のみ。
+  // 「最遠キル」は試合全体から抽出されるため自分のキルとは限らず、
+  // ランキングに載せると本人以外のキルや被害者側のデータが混ざる原因になる。
+  if (!parsed.final) return;
+  const e = { ...parsed.final, killType: "final" };
 
-  for (const e of entries) {
-    await addDoc(killsCol, {
-      distance: Number(e.distance) || 0,
-      killer: e.killer || "",
-      killerPlatform: e.killer_platform || "",
-      victim: e.victim || "",
-      victimPlatform: e.victim_platform || "",
-      weapon: e.weapon || "不明",
-      rarity: e.rarity || "",
-      mode,
-      killType: e.killType,
-      profileId,
-      profileName,
-      createdAt: serverTimestamp(),
-    });
-  }
+  await addDoc(killsCol, {
+    distance: Number(e.distance) || 0,
+    killer: e.killer || "",
+    killerPlatform: e.killer_platform || "",
+    victim: e.victim || "",
+    victimPlatform: e.victim_platform || "",
+    weapon: e.weapon || "不明",
+    rarity: e.rarity || "",
+    mode,
+    killType: e.killType,
+    profileId,
+    profileName,
+    createdAt: serverTimestamp(),
+  });
 }
 
 /* ---------- Tabs ---------- */
@@ -374,6 +375,15 @@ onAuthStateChanged(auth, (user) => {
   }
   if (document.getElementById("profiles").classList.contains("active")) {
     loadProfileList();
+  } else {
+    // プロフィール一覧タブを開いていなくても、アップロード欄の
+    // プロフィール選択に自分のプロフィールを反映させる
+    (async () => {
+      const snap = await getDocs(query(profilesCol));
+      const profiles = [];
+      snap.forEach((d) => profiles.push({ id: d.id, ...d.data() }));
+      refreshProfileSelect(profiles);
+    })();
   }
 });
 
@@ -428,15 +438,15 @@ function emptyRow(colspan, msg) {
   return `<tr class="empty-row"><td colspan="${colspan}">${msg}</td></tr>`;
 }
 
-/* すべて killType == "furthest" の等値フィルタのみで取得し（複合インデックス不要）、
+/* すべて killType == "final"（ラストキル）の等値フィルタのみで取得し（複合インデックス不要）、
    武器/モード/本日 の絞り込みとソートはクライアント側で行う */
-let allFurthestCache = null;
-async function loadAllFurthest() {
-  if (allFurthestCache) return allFurthestCache;
-  const snap = await getDocs(query(killsCol, where("killType", "==", "furthest")));
+let allFinalCache = null;
+async function loadAllFinal() {
+  if (allFinalCache) return allFinalCache;
+  const snap = await getDocs(query(killsCol, where("killType", "==", "final")));
   const rows = [];
   snap.forEach((d) => rows.push(d.data()));
-  allFurthestCache = rows;
+  allFinalCache = rows;
   return rows;
 }
 
@@ -445,7 +455,7 @@ async function loadRanking(mode) {
   tbody.innerHTML = emptyRow(5, t("loading"));
 
   try {
-    const all = await loadAllFurthest();
+    const all = await loadAllFinal();
     let rows = all;
 
     if (mode === "weapon") {
@@ -586,6 +596,11 @@ function refreshProfileSelect(profiles) {
     profiles.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
   if ([...profileSelect.options].some((o) => o.value === current)) {
     profileSelect.value = current;
+  } else if (!current && currentUser) {
+    // 未選択の場合、ログイン中ユーザー自身のプロフィールがあれば自動で選んでおく
+    // （自分の記録が自分のプロフィールに紐付かない事故を防ぐ）
+    const own = profiles.find((p) => p.ownerUid === currentUser.uid);
+    if (own) profileSelect.value = own.id;
   }
 }
 
