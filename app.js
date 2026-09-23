@@ -14,6 +14,13 @@ import {
   serverTimestamp,
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
 /* ---------- Firebase setup ---------- */
 const firebaseConfig = {
@@ -27,16 +34,68 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
 const killsCol = collection(db, "kills");
 const profilesCol = collection(db, "profiles");
+
+/* ---------- Auth ---------- */
+const authStatus = document.getElementById("authStatus");
+const loginBtn = document.getElementById("loginBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const myProfileBtn = document.getElementById("myProfileBtn");
+
+let currentUser = null;
+
+loginBtn.addEventListener("click", async () => {
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (err) {
+    alert("ログインに失敗しました: " + err.message);
+  }
+});
+
+logoutBtn.addEventListener("click", () => signOut(auth));
+
+onAuthStateChanged(auth, (user) => {
+  currentUser = user;
+  if (user) {
+    authStatus.textContent = `${user.displayName} でログイン中`;
+    loginBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+    myProfileBtn.style.display = "inline-block";
+  } else {
+    authStatus.textContent = "未ログイン";
+    loginBtn.style.display = "inline-block";
+    logoutBtn.style.display = "none";
+    myProfileBtn.style.display = "none";
+  }
+});
+
+myProfileBtn.addEventListener("click", async () => {
+  if (!currentUser) return;
+  showTab("profiles");
+  const snap = await getDocs(query(profilesCol, where("ownerUid", "==", currentUser.uid), limit(1)));
+  if (snap.empty) {
+    // まだプロフィールがない場合は作成フォームへ
+    editingProfileId = null;
+    profileNameInput.value = currentUser.displayName || "";
+    profileIconInput.value = currentUser.photoURL || "";
+    profileTwitterInput.value = "";
+    profileBioInput.value = "";
+    profileList.style.display = "none";
+    profileForm.style.display = "block";
+  } else {
+    openProfileDetail(snap.docs[0].id);
+  }
+});
 
 /* ---------- Replay parsing (existing backend, unchanged) ---------- */
 const API_BASE = "https://kye5-replay-bot.onrender.com";
 
 const parseBtn = document.getElementById("parseBtn");
 const fileInput = document.getElementById("fileInput");
-const modeSelect = document.getElementById("modeSelect");
 const profileSelect = document.getElementById("profileSelect");
 const results = document.getElementById("results");
 
@@ -69,23 +128,41 @@ parseBtn.addEventListener("click", async () => {
   }
 });
 
+const KNOWN_LABELS = {
+  distance: "Distance",
+  killer: "Killer",
+  killer_platform: "Killer Platform",
+  victim: "Victim",
+  victim_platform: "Victim Platform",
+  weapon: "Weapon",
+  rarity: "Rarity",
+};
+
 function renderResults(data) {
   results.innerHTML = "";
   if (data.furthest) results.appendChild(createCard("🏹 Furthest Kill", data.furthest));
   if (data.final) results.appendChild(createCard("🏁 Final Kill", data.final));
+
+  // 試合全体（furthest/final以外）にモード/プレイリストらしき情報がないか確認するための一時表示
+  const matchLevel = { ...data };
+  delete matchLevel.furthest;
+  delete matchLevel.final;
+  if (Object.keys(matchLevel).length) {
+    const box = document.createElement("div");
+    box.className = "raw-info";
+    box.textContent = "試合全体の情報（モード自動判定の確認用）:\n" + JSON.stringify(matchLevel, null, 2);
+    results.appendChild(box);
+  }
 }
 
 function createCard(title, stats) {
   const card = document.createElement("div");
   card.className = "card";
-  card.innerHTML = `
-    <h2>${title}</h2>
-    ${row("Distance", `${stats.distance} m`)}
-    ${row("Killer", `${stats.killer} (${stats.killer_platform})`)}
-    ${row("Victim", `${stats.victim} (${stats.victim_platform})`)}
-    ${row("Weapon", stats.weapon)}
-    ${row("Rarity", stats.rarity)}
-  `;
+  const rowsHtml = Object.entries(stats)
+    .filter(([k]) => k !== "killType")
+    .map(([k, v]) => row(KNOWN_LABELS[k] || k, k === "distance" ? `${v} m` : v))
+    .join("");
+  card.innerHTML = `<h2>${title}</h2>${rowsHtml}`;
   return card;
 }
 
@@ -93,9 +170,24 @@ function row(label, value) {
   return `<div class="stat"><span class="label">${label}</span><span>${value}</span></div>`;
 }
 
+/* リプレイ側にモード/プレイリスト情報がありそうなキーを推測して拾う。
+   見つからない場合は「不明」として保存する（後で正しいキー名が分かり次第調整） */
+function guessMode(parsed) {
+  const candidates = ["mode", "playlist", "playlistName", "game_mode", "gameMode", "matchMode", "map"];
+  for (const key of candidates) {
+    if (parsed[key]) return String(parsed[key]);
+  }
+  if (parsed.furthest) {
+    for (const key of candidates) {
+      if (parsed.furthest[key]) return String(parsed.furthest[key]);
+    }
+  }
+  return "不明";
+}
+
 /* Save both furthest + final kills into Firestore, tagged with mode + optional profile */
 async function saveKills(parsed) {
-  const mode = modeSelect.value;
+  const mode = guessMode(parsed);
   const profileId = profileSelect.value || null;
   const profileName = profileId
     ? profileSelect.options[profileSelect.selectedIndex].textContent
@@ -183,6 +275,7 @@ async function loadRanking(mode) {
       limit(50)
     );
   } else if (mode === "mode") {
+    await populateModeFilter();
     const m = modeFilter.value;
     q = query(
       killsCol,
@@ -259,6 +352,22 @@ async function populateWeaponFilter() {
   weaponsLoaded = true;
 }
 
+let modesLoaded = false;
+async function populateModeFilter() {
+  if (modesLoaded) return;
+  const snap = await getDocs(query(killsCol, where("killType", "==", "furthest"), limit(200)));
+  const modes = new Set();
+  snap.forEach((d) => {
+    const m = d.data().mode;
+    if (m) modes.add(m);
+  });
+  modeFilter.innerHTML = [...modes]
+    .sort()
+    .map((m) => `<option value="${m}">${m}</option>`)
+    .join("");
+  modesLoaded = true;
+}
+
 /* ---------- Profiles ---------- */
 const profileList = document.getElementById("profileList");
 const profileForm = document.getElementById("profileForm");
@@ -272,6 +381,7 @@ const editProfileBtn = document.getElementById("editProfileBtn");
 
 const profileNameInput = document.getElementById("profileName");
 const profileIconInput = document.getElementById("profileIcon");
+const profileTwitterInput = document.getElementById("profileTwitter");
 const profileBioInput = document.getElementById("profileBio");
 
 let editingProfileId = null;
@@ -323,6 +433,7 @@ newProfileBtn.addEventListener("click", () => {
   editingProfileId = null;
   profileNameInput.value = "";
   profileIconInput.value = "";
+  profileTwitterInput.value = "";
   profileBioInput.value = "";
   profileList.style.display = "none";
   profileForm.style.display = "block";
@@ -339,6 +450,7 @@ saveProfileBtn.addEventListener("click", async () => {
   const payload = {
     name,
     iconUrl: profileIconInput.value.trim(),
+    twitter: profileTwitterInput.value.trim(),
     bio: profileBioInput.value.trim(),
   };
 
@@ -347,6 +459,7 @@ saveProfileBtn.addEventListener("click", async () => {
     openProfileDetail(editingProfileId);
   } else {
     payload.createdAt = serverTimestamp();
+    if (currentUser) payload.ownerUid = currentUser.uid;
     const ref = await addDoc(profilesCol, payload);
     openProfileDetail(ref.id);
   }
@@ -364,12 +477,17 @@ async function openProfileDetail(id) {
   const p = { id: snap.id, ...snap.data() };
   editingProfileId = id;
 
+  const twitterLink = p.twitter
+    ? `<p><a href="${p.twitter}" target="_blank" rel="noopener">🔗 ${p.twitter}</a></p>`
+    : "";
+
   document.getElementById("profileDetailCard").innerHTML = `
     <div class="profile-detail-header">
       <img src="${p.iconUrl || ""}" onerror="this.style.visibility='hidden'" />
       <div>
         <h2>${p.name}</h2>
         <p>${p.bio || ""}</p>
+        ${twitterLink}
       </div>
     </div>
   `;
@@ -407,6 +525,7 @@ editProfileBtn.addEventListener("click", async () => {
   const p = snap.data();
   profileNameInput.value = p.name || "";
   profileIconInput.value = p.iconUrl || "";
+  profileTwitterInput.value = p.twitter || "";
   profileBioInput.value = p.bio || "";
   profileDetail.style.display = "none";
   profileForm.style.display = "block";

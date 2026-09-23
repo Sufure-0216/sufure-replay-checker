@@ -14,6 +14,13 @@
   <div class="container">
     <h1>🎯 Sufure's Replay Checker</h1>
 
+    <div class="authbar" id="authbar">
+      <span id="authStatus">未ログイン</span>
+      <button id="loginBtn" class="secondary">Googleでログイン</button>
+      <button id="logoutBtn" class="secondary" style="display:none;">ログアウト</button>
+      <button id="myProfileBtn" style="display:none;">マイプロフィール</button>
+    </div>
+
     <!-- Main tabs -->
     <div class="tabs">
       <button onclick="showTab('upload')">アップロード</button>
@@ -25,16 +32,6 @@
     <div id="upload" class="tab active">
       <div class="upload">
         <input type="file" id="fileInput" accept=".replay" />
-
-        <label class="field-label">モード</label>
-        <select id="modeSelect">
-          <option value="ソロ">ソロ</option>
-          <option value="デュオ">デュオ</option>
-          <option value="トリオ">トリオ</option>
-          <option value="スクワッド">スクワッド</option>
-          <option value="ゼロビルド">ゼロビルド</option>
-          <option value="その他">その他</option>
-        </select>
 
         <label class="field-label">記録するプロフィール（任意）</label>
         <select id="profileSelect">
@@ -74,14 +71,7 @@
 
       <div id="modeFilterWrap" class="filter-wrap" style="display:none;">
         <label class="field-label">モードを選択</label>
-        <select id="modeFilter">
-          <option value="ソロ">ソロ</option>
-          <option value="デュオ">デュオ</option>
-          <option value="トリオ">トリオ</option>
-          <option value="スクワッド">スクワッド</option>
-          <option value="ゼロビルド">ゼロビルド</option>
-          <option value="その他">その他</option>
-        </select>
+        <select id="modeFilter"></select>
       </div>
 
       <h2 id="rankingTitle">🏆 Furthest Kill Leaderboard</h2>
@@ -116,6 +106,8 @@
         <input type="text" id="profileName" placeholder="表示名" />
         <label class="field-label">アイコン画像URL（任意）</label>
         <input type="text" id="profileIcon" placeholder="https://..." />
+        <label class="field-label">X（Twitter）リンク（任意）</label>
+        <input type="text" id="profileTwitter" placeholder="https://x.com/yourid" />
         <label class="field-label">BIO（任意）</label>
         <textarea id="profileBio" rows="3" placeholder="自己紹介"></textarea>
         <div class="form-actions">
