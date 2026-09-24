@@ -441,7 +441,14 @@ async function loadRanking(mode) {
     }
 
     rows = [...rows].sort((a, b) => b.distance - a.distance).slice(0, 50);
-    renderLeaderboard(rows);
+
+    // 本人の投稿だけ削除できるようにするため、自分のuidと自分のプロフィールIDを取得しておく
+    let myProfileId = null;
+    if (currentUser) {
+      const own = await getOwnProfileSnap();
+      myProfileId = own ? own.id : null;
+    }
+    renderLeaderboard(rows, myProfileId);
   } catch (err) {
     tbody.innerHTML = emptyRow(5, t("loadError") + err.message);
   }
@@ -454,7 +461,7 @@ function populateFilterOptions(selectEl, values) {
   if (unique.includes(current)) selectEl.value = current;
 }
 
-function renderLeaderboard(rows) {
+function renderLeaderboard(rows, myProfileId) {
   const tbody = document.querySelector("#leaderboard-table tbody");
   if (!rows.length) {
     tbody.innerHTML = emptyRow(5, t("emptyRanking"));
@@ -468,9 +475,17 @@ function renderLeaderboard(rows) {
       else if (i === 2) rank = "🥉";
       const hasProfile = !!e.profileName;
       const player = hasProfile ? e.profileName : e.killer;
-      // テスト整理用: ログイン中は誰でもランキングの行を消せるようにしておく
-      // （このサイトは自分ひとりでテストアップロードする運用のため）
-      const deleteBtn = currentUser
+      // 削除は「本人の投稿」だけ許可する:
+      // ・ownerUid が自分のuidと一致する（新しい投稿）
+      // ・または profileId が自分のプロフィールと一致する（自分のプロフィールに紐付いた投稿）
+      // ・どちらも無い古いテストデータ（誰の投稿か特定できないもの）はログイン中なら整理してよいことにする
+      const isAnonymousLegacy = !e.ownerUid && !e.profileId;
+      const isMine =
+        currentUser &&
+        (isAnonymousLegacy ||
+          (e.ownerUid && e.ownerUid === currentUser.uid) ||
+          (myProfileId && e.profileId === myProfileId));
+      const deleteBtn = isMine
         ? `<button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button>`
         : "";
       const profileBtn = hasProfile
