@@ -45,7 +45,6 @@ const I18N = {
     authLoggedOut: "未ログイン",
     loginBtn: "Googleでログイン",
     logoutBtn: "ログアウト",
-    myProfileBtn: "マイプロフィール",
     tabUpload: "アップロード",
     tabRankings: "ランキング",
     tabProfiles: "プロフィール",
@@ -66,6 +65,7 @@ const I18N = {
     thDate: "日時",
     thDelete: "",
     deleteRecordBtn: "削除",
+    viewProfileBtn: "プロフへ",
     confirmDeleteRecord: "この記録を削除しますか？元に戻せません。",
     deleteFailed: "削除に失敗しました: ",
     profileListTitle: "👤 プロフィール一覧",
@@ -112,7 +112,6 @@ const I18N = {
     authLoggedOut: "Not logged in",
     loginBtn: "Sign in with Google",
     logoutBtn: "Log out",
-    myProfileBtn: "My Profile",
     tabUpload: "Upload",
     tabRankings: "Rankings",
     tabProfiles: "Profiles",
@@ -133,6 +132,7 @@ const I18N = {
     thDate: "Date",
     thDelete: "",
     deleteRecordBtn: "Delete",
+    viewProfileBtn: "Profile",
     confirmDeleteRecord: "Delete this record? This cannot be undone.",
     deleteFailed: "Failed to delete: ",
     profileListTitle: "👤 Profiles",
@@ -333,7 +333,6 @@ window.showTab = showTab;
 const authStatus = document.getElementById("authStatus");
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
-const myProfileBtn = document.getElementById("myProfileBtn");
 
 let currentUser = null;
 
@@ -353,12 +352,10 @@ onAuthStateChanged(auth, (user) => {
     authStatus.textContent = user.displayName;
     loginBtn.style.display = "none";
     logoutBtn.style.display = "inline-block";
-    myProfileBtn.style.display = "inline-block";
   } else {
     authStatus.textContent = t("authLoggedOut");
     loginBtn.style.display = "inline-block";
     logoutBtn.style.display = "none";
-    myProfileBtn.style.display = "none";
   }
   if (document.getElementById("profiles").classList.contains("active")) {
     loadProfileList();
@@ -383,17 +380,6 @@ async function getOwnProfileSnap() {
   const snap = await getDocs(query(profilesCol, where("ownerUid", "==", currentUser.uid)));
   return snap.empty ? null : snap.docs[0];
 }
-
-myProfileBtn.addEventListener("click", async () => {
-  if (!currentUser) return;
-  showTab("profiles");
-  const own = await getOwnProfileSnap();
-  if (own) {
-    openProfileDetail(own.id);
-  } else {
-    openCreateForm();
-  }
-});
 
 /* ---------- Rankings ---------- */
 let currentRankingMode = "overall";
@@ -482,27 +468,29 @@ function renderLeaderboard(rows) {
       else if (i === 2) rank = "🥉";
       const hasProfile = !!e.profileName;
       const player = hasProfile ? e.profileName : e.killer;
-      const cellClass = hasProfile ? "player-cell profile-link" : "player-cell";
       // テスト整理用: ログイン中は誰でもランキングの行を消せるようにしておく
       // （このサイトは自分ひとりでテストアップロードする運用のため）
-      const deleteCell = currentUser
-        ? `<td><button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button></td>`
-        : "<td></td>";
+      const deleteBtn = currentUser
+        ? `<button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button>`
+        : "";
+      const profileBtn = hasProfile
+        ? `<button class="view-profile-btn" data-profile-id="${escapeAttr(e.profileId)}">${t("viewProfileBtn")}</button>`
+        : "";
       return `
         <tr class="rank-${i + 1}">
           <td class="rank">${rank}</td>
           <td>${e.distance}</td>
-          <td class="${cellClass}" data-profile-id="${escapeAttr(e.profileId || "")}">${player}</td>
+          <td class="player-cell">${player}</td>
           <td>${e.weapon}</td>
-          ${deleteCell}
+          <td class="action-cell">${profileBtn}${deleteBtn}</td>
         </tr>
       `;
     })
     .join("");
 
-  tbody.querySelectorAll("td.profile-link").forEach((cell) => {
-    cell.addEventListener("click", () => {
-      const id = cell.dataset.profileId;
+  tbody.querySelectorAll(".view-profile-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.profileId;
       if (!id) return;
       showTab("profiles");
       openProfileDetail(id);
@@ -510,8 +498,7 @@ function renderLeaderboard(rows) {
   });
 
   tbody.querySelectorAll(".delete-record-btn").forEach((btn) => {
-    btn.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
+    btn.addEventListener("click", async () => {
       if (!confirm(t("confirmDeleteRecord"))) return;
       try {
         await deleteDoc(doc(db, "kills", btn.dataset.id));

@@ -269,6 +269,18 @@ button.secondary {
 }
 .delete-record-btn:hover { background: #edc4a5; }
 
+.action-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.view-profile-btn {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  margin-top: 0;
+  background: #f1e4c8;
+  color: #7a5a34;
+  border: 1px solid #ddc99e;
+}
+.view-profile-btn:hover { background: #ecd9b3; }
+
 /* Leaderboard */
 .leaderboard-container {
   max-height: 460px;
@@ -289,12 +301,6 @@ th { text-align: left; color: #a68a5f; font-weight: 700; background: #f6ecd6; fo
 .rank-3 { background: linear-gradient(90deg, #e3c79a, transparent); }
 .rank-1 td, .rank-2 td, .rank-3 td { font-weight: 700; }
 
-.profile-link {
-  cursor: pointer;
-  text-decoration: underline dotted #cba86e;
-  text-underline-offset: 3px;
-}
-.profile-link:hover { color: #a9713e; }
 
 .empty-row td {
   text-align: center;
