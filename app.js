@@ -312,6 +312,7 @@ async function saveKills(parsed) {
     killType: e.killType,
     profileId,
     profileName,
+    ownerUid: currentUser ? currentUser.uid : null,
     createdAt: serverTimestamp(),
   });
 }
@@ -371,6 +372,10 @@ onAuthStateChanged(auth, (user) => {
       refreshProfileSelect(profiles);
     })();
   }
+  if (document.getElementById("rankings").classList.contains("active")) {
+    // ログイン状態が変わったら削除ボタンの表示/非表示を反映
+    loadRanking(currentRankingMode);
+  }
 });
 
 async function getOwnProfileSnap() {
@@ -426,14 +431,14 @@ async function loadAllFinal() {
   if (allFinalCache) return allFinalCache;
   const snap = await getDocs(query(killsCol, where("killType", "==", "final")));
   const rows = [];
-  snap.forEach((d) => rows.push(d.data()));
+  snap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
   allFinalCache = rows;
   return rows;
 }
 
 async function loadRanking(mode) {
   const tbody = document.querySelector("#leaderboard-table tbody");
-  tbody.innerHTML = emptyRow(4, t("loading"));
+  tbody.innerHTML = emptyRow(5, t("loading"));
 
   try {
     const all = await loadAllFinal();
@@ -452,7 +457,7 @@ async function loadRanking(mode) {
     rows = [...rows].sort((a, b) => b.distance - a.distance).slice(0, 50);
     renderLeaderboard(rows);
   } catch (err) {
-    tbody.innerHTML = emptyRow(4, t("loadError") + err.message);
+    tbody.innerHTML = emptyRow(5, t("loadError") + err.message);
   }
 }
 
@@ -466,7 +471,7 @@ function populateFilterOptions(selectEl, values) {
 function renderLeaderboard(rows) {
   const tbody = document.querySelector("#leaderboard-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = emptyRow(4, t("emptyRanking"));
+    tbody.innerHTML = emptyRow(5, t("emptyRanking"));
     return;
   }
   tbody.innerHTML = rows
@@ -478,12 +483,18 @@ function renderLeaderboard(rows) {
       const hasProfile = !!e.profileName;
       const player = hasProfile ? e.profileName : e.killer;
       const cellClass = hasProfile ? "player-cell profile-link" : "player-cell";
+      // テスト整理用: ログイン中は誰でもランキングの行を消せるようにしておく
+      // （このサイトは自分ひとりでテストアップロードする運用のため）
+      const deleteCell = currentUser
+        ? `<td><button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button></td>`
+        : "<td></td>";
       return `
         <tr class="rank-${i + 1}">
           <td class="rank">${rank}</td>
           <td>${e.distance}</td>
           <td class="${cellClass}" data-profile-id="${escapeAttr(e.profileId || "")}">${player}</td>
           <td>${e.weapon}</td>
+          ${deleteCell}
         </tr>
       `;
     })
@@ -495,6 +506,20 @@ function renderLeaderboard(rows) {
       if (!id) return;
       showTab("profiles");
       openProfileDetail(id);
+    });
+  });
+
+  tbody.querySelectorAll(".delete-record-btn").forEach((btn) => {
+    btn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(t("confirmDeleteRecord"))) return;
+      try {
+        await deleteDoc(doc(db, "kills", btn.dataset.id));
+        allFinalCache = null;
+        loadRanking(currentRankingMode);
+      } catch (err) {
+        alert(t("deleteFailed") + err.message);
+      }
     });
   });
 }
