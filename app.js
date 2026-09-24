@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import {
@@ -56,16 +57,17 @@ const I18N = {
     replayHelpHint: "USERNAME はあなたのWindowsのユーザー名に置き換えてください。AppDataが見えない場合は「隠しファイルを表示」を有効にしてください。",
     subtabOverall: "🏆 総合",
     subtabWeapon: "🔫 武器別",
-    subtabMode: "🎮 モード別",
     subtabDaily: "📅 デイリー",
     weaponFilterLabel: "武器を選択",
-    modeFilterLabel: "モードを選択",
     thDistance: "距離 (m)",
     thPlayer: "プレイヤー",
     thWeapon: "武器",
-    thMode: "モード",
     thType: "種別",
     thDate: "日時",
+    thDelete: "",
+    deleteRecordBtn: "削除",
+    confirmDeleteRecord: "この記録を削除しますか？元に戻せません。",
+    deleteFailed: "削除に失敗しました: ",
     profileListTitle: "👤 プロフィール一覧",
     newProfileBtn: "＋ 新しいプロフィールを作る",
     profileFormTitle: "プロフィールを作成 / 編集",
@@ -81,7 +83,6 @@ const I18N = {
 
     rankOverallTitle: "🏆 総合ランキング（ラストキル）",
     rankWeaponTitle: "🔫 武器別ランキング",
-    rankModeTitle: "🎮 モード別ランキング",
     rankDailyTitle: "📅 デイリーランキング（本日）",
     loading: "読み込み中...",
     emptyRanking: "まだ誰もアップロードしていません",
@@ -97,7 +98,7 @@ const I18N = {
     labelVictim: "被害者",
     labelWeapon: "武器",
     labelRarity: "レア度",
-    matchInfoTitle: "試合全体の情報（モード自動判定の確認用）:\n",
+    matchInfoTitle: "試合全体の情報:\n",
     needLoginToCreate: "プロフィールを作成するにはGoogleログインが必要です",
     alreadyHasProfile: "すでにプロフィールを作成済みです。編集画面を開きます。",
     needName: "名前を入力してください",
@@ -123,16 +124,17 @@ const I18N = {
     replayHelpHint: "Replace USERNAME with your Windows username. If you don't see AppData, enable \"Show hidden files\".",
     subtabOverall: "🏆 Overall",
     subtabWeapon: "🔫 By Weapon",
-    subtabMode: "🎮 By Mode",
     subtabDaily: "📅 Daily",
     weaponFilterLabel: "Select weapon",
-    modeFilterLabel: "Select mode",
     thDistance: "Distance (m)",
     thPlayer: "Player",
     thWeapon: "Weapon",
-    thMode: "Mode",
     thType: "Type",
     thDate: "Date",
+    thDelete: "",
+    deleteRecordBtn: "Delete",
+    confirmDeleteRecord: "Delete this record? This cannot be undone.",
+    deleteFailed: "Failed to delete: ",
     profileListTitle: "👤 Profiles",
     newProfileBtn: "＋ Create a profile",
     profileFormTitle: "Create / Edit Profile",
@@ -148,7 +150,6 @@ const I18N = {
 
     rankOverallTitle: "🏆 Overall Ranking (Last Kill)",
     rankWeaponTitle: "🔫 Ranking by Weapon",
-    rankModeTitle: "🎮 Ranking by Mode",
     rankDailyTitle: "📅 Daily Ranking (Today)",
     loading: "Loading...",
     emptyRanking: "No submissions yet",
@@ -164,7 +165,7 @@ const I18N = {
     labelVictim: "Victim",
     labelWeapon: "Weapon",
     labelRarity: "Rarity",
-    matchInfoTitle: "Match-level info (for mode auto-detection):\n",
+    matchInfoTitle: "Match-level info:\n",
     needLoginToCreate: "You need to sign in with Google to create a profile",
     alreadyHasProfile: "You already have a profile. Opening it for editing.",
     needName: "Please enter a name",
@@ -288,21 +289,7 @@ function row(label, value) {
   return `<div class="stat"><span class="label">${label}</span><span>${value}</span></div>`;
 }
 
-function guessMode(parsed) {
-  const candidates = ["mode", "playlist", "playlistName", "game_mode", "gameMode", "matchMode", "map"];
-  for (const key of candidates) {
-    if (parsed[key]) return String(parsed[key]);
-  }
-  if (parsed.furthest) {
-    for (const key of candidates) {
-      if (parsed.furthest[key]) return String(parsed.furthest[key]);
-    }
-  }
-  return "不明";
-}
-
 async function saveKills(parsed) {
-  const mode = guessMode(parsed);
   const profileId = profileSelect.value || null;
   const profileName = profileId
     ? profileSelect.options[profileSelect.selectedIndex].textContent
@@ -322,7 +309,6 @@ async function saveKills(parsed) {
     victimPlatform: e.victim_platform || "",
     weapon: e.weapon || "不明",
     rarity: e.rarity || "",
-    mode,
     killType: e.killType,
     profileId,
     profileName,
@@ -408,9 +394,7 @@ myProfileBtn.addEventListener("click", async () => {
 let currentRankingMode = "overall";
 const rankingTitle = document.getElementById("rankingTitle");
 const weaponFilterWrap = document.getElementById("weaponFilterWrap");
-const modeFilterWrap = document.getElementById("modeFilterWrap");
 const weaponFilter = document.getElementById("weaponFilter");
-const modeFilter = document.getElementById("modeFilter");
 
 function showRankingMode(mode) {
   currentRankingMode = mode;
@@ -418,12 +402,10 @@ function showRankingMode(mode) {
     b.classList.toggle("active", b.dataset.mode === mode)
   );
   weaponFilterWrap.style.display = mode === "weapon" ? "block" : "none";
-  modeFilterWrap.style.display = mode === "mode" ? "block" : "none";
 
   const titles = {
     overall: t("rankOverallTitle"),
     weapon: t("rankWeaponTitle"),
-    mode: t("rankModeTitle"),
     daily: t("rankDailyTitle"),
   };
   rankingTitle.textContent = titles[mode];
@@ -432,14 +414,13 @@ function showRankingMode(mode) {
 }
 window.showRankingMode = showRankingMode;
 weaponFilter.addEventListener("change", () => loadRanking("weapon"));
-modeFilter.addEventListener("change", () => loadRanking("mode"));
 
 function emptyRow(colspan, msg) {
   return `<tr class="empty-row"><td colspan="${colspan}">${msg}</td></tr>`;
 }
 
 /* すべて killType == "final"（ラストキル）の等値フィルタのみで取得し（複合インデックス不要）、
-   武器/モード/本日 の絞り込みとソートはクライアント側で行う */
+   武器/本日 の絞り込みとソートはクライアント側で行う */
 let allFinalCache = null;
 async function loadAllFinal() {
   if (allFinalCache) return allFinalCache;
@@ -452,7 +433,7 @@ async function loadAllFinal() {
 
 async function loadRanking(mode) {
   const tbody = document.querySelector("#leaderboard-table tbody");
-  tbody.innerHTML = emptyRow(5, t("loading"));
+  tbody.innerHTML = emptyRow(4, t("loading"));
 
   try {
     const all = await loadAllFinal();
@@ -462,10 +443,6 @@ async function loadRanking(mode) {
       populateFilterOptions(weaponFilter, all.map((r) => r.weapon));
       const w = weaponFilter.value;
       rows = w ? all.filter((r) => r.weapon === w) : [];
-    } else if (mode === "mode") {
-      populateFilterOptions(modeFilter, all.map((r) => r.mode));
-      const m = modeFilter.value;
-      rows = m ? all.filter((r) => r.mode === m) : [];
     } else if (mode === "daily") {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -475,7 +452,7 @@ async function loadRanking(mode) {
     rows = [...rows].sort((a, b) => b.distance - a.distance).slice(0, 50);
     renderLeaderboard(rows);
   } catch (err) {
-    tbody.innerHTML = emptyRow(5, t("loadError") + err.message);
+    tbody.innerHTML = emptyRow(4, t("loadError") + err.message);
   }
 }
 
@@ -489,7 +466,7 @@ function populateFilterOptions(selectEl, values) {
 function renderLeaderboard(rows) {
   const tbody = document.querySelector("#leaderboard-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = emptyRow(5, t("emptyRanking"));
+    tbody.innerHTML = emptyRow(4, t("emptyRanking"));
     return;
   }
   tbody.innerHTML = rows
@@ -500,24 +477,24 @@ function renderLeaderboard(rows) {
       else if (i === 2) rank = "🥉";
       const hasProfile = !!e.profileName;
       const player = hasProfile ? e.profileName : e.killer;
-      const cellClass = hasProfile ? "player-cell togglable" : "player-cell";
+      const cellClass = hasProfile ? "player-cell profile-link" : "player-cell";
       return `
         <tr class="rank-${i + 1}">
           <td class="rank">${rank}</td>
           <td>${e.distance}</td>
-          <td class="${cellClass}" data-profile-name="${escapeAttr(e.profileName || "")}" data-fn-id="${escapeAttr(e.killer || "")}" data-showing="profile">${player}</td>
+          <td class="${cellClass}" data-profile-id="${escapeAttr(e.profileId || "")}">${player}</td>
           <td>${e.weapon}</td>
-          <td>${e.mode || ""}</td>
         </tr>
       `;
     })
     .join("");
 
-  tbody.querySelectorAll("td.togglable").forEach((cell) => {
+  tbody.querySelectorAll("td.profile-link").forEach((cell) => {
     cell.addEventListener("click", () => {
-      const showingProfile = cell.dataset.showing === "profile";
-      cell.textContent = showingProfile ? cell.dataset.fnId : cell.dataset.profileName;
-      cell.dataset.showing = showingProfile ? "fortnite" : "profile";
+      const id = cell.dataset.profileId;
+      if (!id) return;
+      showTab("profiles");
+      openProfileDetail(id);
     });
   });
 }
@@ -698,7 +675,7 @@ async function openProfileDetail(id) {
   tbody.innerHTML = emptyRow(5, t("loading"));
   const histSnap = await getDocs(query(killsCol, where("profileId", "==", id)));
   const rows = [];
-  histSnap.forEach((d) => rows.push(d.data()));
+  histSnap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
   rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
   if (!rows.length) {
@@ -708,17 +685,33 @@ async function openProfileDetail(id) {
       .map((e) => {
         const date = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleString() : "";
         const typeLabel = e.killType === "furthest" ? t("killTypeFurthest") : t("killTypeFinal");
+        const deleteCell = isOwner
+          ? `<td><button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button></td>`
+          : "";
         return `
           <tr>
             <td>${e.distance}</td>
             <td>${e.weapon}</td>
-            <td>${e.mode || ""}</td>
             <td>${typeLabel}</td>
             <td>${date}</td>
+            ${deleteCell}
           </tr>
         `;
       })
       .join("");
+
+    tbody.querySelectorAll(".delete-record-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm(t("confirmDeleteRecord"))) return;
+        try {
+          await deleteDoc(doc(db, "kills", btn.dataset.id));
+          allFinalCache = null; // ランキングにも反映させる
+          openProfileDetail(id);
+        } catch (err) {
+          alert(t("deleteFailed") + err.message);
+        }
+      });
+    });
   }
 }
 

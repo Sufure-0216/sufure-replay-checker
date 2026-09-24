@@ -259,6 +259,16 @@ button.secondary {
 .form-actions { display: flex; gap: 10px; }
 .form-actions button { flex: 1; }
 
+.delete-record-btn {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  margin-top: 0;
+  background: #f3d9c4;
+  color: #a9522f;
+  border: 1px solid #e2b592;
+}
+.delete-record-btn:hover { background: #edc4a5; }
+
 /* Leaderboard */
 .leaderboard-container {
   max-height: 460px;
@@ -279,12 +289,12 @@ th { text-align: left; color: #a68a5f; font-weight: 700; background: #f6ecd6; fo
 .rank-3 { background: linear-gradient(90deg, #e3c79a, transparent); }
 .rank-1 td, .rank-2 td, .rank-3 td { font-weight: 700; }
 
-.togglable {
+.profile-link {
   cursor: pointer;
   text-decoration: underline dotted #cba86e;
   text-underline-offset: 3px;
 }
-.togglable:hover { color: #a9713e; }
+.profile-link:hover { color: #a9713e; }
 
 .empty-row td {
   text-align: center;

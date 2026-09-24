@@ -71,18 +71,12 @@
       <div class="subtabs">
         <button class="subtab-btn active" data-mode="overall" onclick="showRankingMode('overall')" data-i18n="subtabOverall">🏆 総合</button>
         <button class="subtab-btn" data-mode="weapon" onclick="showRankingMode('weapon')" data-i18n="subtabWeapon">🔫 武器別</button>
-        <button class="subtab-btn" data-mode="mode" onclick="showRankingMode('mode')" data-i18n="subtabMode">🎮 モード別</button>
         <button class="subtab-btn" data-mode="daily" onclick="showRankingMode('daily')" data-i18n="subtabDaily">📅 デイリー</button>
       </div>
 
       <div id="weaponFilterWrap" class="filter-wrap" style="display:none;">
         <label class="field-label" data-i18n="weaponFilterLabel">武器を選択</label>
         <select id="weaponFilter"></select>
-      </div>
-
-      <div id="modeFilterWrap" class="filter-wrap" style="display:none;">
-        <label class="field-label" data-i18n="modeFilterLabel">モードを選択</label>
-        <select id="modeFilter"></select>
       </div>
 
       <h2 id="rankingTitle">🏆 Last Kill Leaderboard</h2>
@@ -95,7 +89,6 @@
               <th data-i18n="thDistance">Distance (m)</th>
               <th data-i18n="thPlayer">Player</th>
               <th data-i18n="thWeapon">Weapon</th>
-              <th data-i18n="thMode">Mode</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -141,9 +134,9 @@
               <tr>
                 <th data-i18n="thDistance">Distance (m)</th>
                 <th data-i18n="thWeapon">Weapon</th>
-                <th data-i18n="thMode">Mode</th>
                 <th data-i18n="thType">種別</th>
                 <th data-i18n="thDate">日時</th>
+                <th data-i18n="thDelete"></th>
               </tr>
             </thead>
             <tbody></tbody>
