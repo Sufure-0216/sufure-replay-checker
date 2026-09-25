@@ -269,7 +269,7 @@ button.secondary {
 }
 .delete-record-btn:hover { background: #edc4a5; }
 
-.action-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+.action-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 30px; }
 
 .view-profile-btn {
   padding: 6px 12px;
@@ -346,11 +346,12 @@ th { text-align: left; color: #a68a5f; font-weight: 700; background: #f6ecd6; fo
 
 .version-tag {
   position: fixed;
-  right: 10px;
-  bottom: 8px;
-  font-size: 0.68rem;
-  color: #b0895a;
-  opacity: 0.55;
-  letter-spacing: 0.03em;
+  right: 12px;
+  bottom: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #a9713e;
+  opacity: 0.75;
+  letter-spacing: 0.02em;
   pointer-events: none;
 }

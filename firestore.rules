@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /kills/{killId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if false;
+      // 本人（投稿時に記録された ownerUid と一致するログイン中ユーザー）だけ削除できる
+      allow delete: if request.auth != null
+                      && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /profiles/{profileId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                      && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if request.auth != null
+                      && resource.data.ownerUid == request.auth.uid
+                      && request.resource.data.name == resource.data.name
+                      && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+    }
+  }
+}
