@@ -343,3 +343,14 @@ th { text-align: left; color: #a68a5f; font-weight: 700; background: #f6ecd6; fo
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.version-tag {
+  position: fixed;
+  right: 10px;
+  bottom: 8px;
+  font-size: 0.68rem;
+  color: #b0895a;
+  opacity: 0.55;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
