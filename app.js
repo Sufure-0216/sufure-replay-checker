@@ -6,6 +6,7 @@ import {
   getDocs,
   query,
   where,
+  or,
   doc,
   getDoc,
   updateDoc,
@@ -362,12 +363,8 @@ onAuthStateChanged(auth, (user) => {
   } else {
     // プロフィール一覧タブを開いていなくても、アップロード欄の
     // プロフィール選択に自分のプロフィールを反映させる
-    (async () => {
-      const snap = await getDocs(query(profilesCol));
-      const profiles = [];
-      snap.forEach((d) => profiles.push({ id: d.id, ...d.data() }));
-      refreshProfileSelect(profiles);
-    })();
+    invalidateProfilesCache();
+    loadAllProfiles().then((profiles) => refreshProfileSelect(profiles));
   }
   if (document.getElementById("rankings").classList.contains("active")) {
     // ログイン状態が変わったら削除ボタンの表示/非表示を反映
@@ -379,6 +376,22 @@ async function getOwnProfileSnap() {
   if (!currentUser) return null;
   const snap = await getDocs(query(profilesCol, where("ownerUid", "==", currentUser.uid)));
   return snap.empty ? null : snap.docs[0];
+}
+
+/* 全プロフィールを取得し、ownerUid -> プロフィール のマップを作る。
+   ランキング側の表示・削除・プロフへボタンの判定は、アップロード時に選択し忘れていても
+   ここで ownerUid から正しく引き当てられるようにする（自己修復） */
+let allProfilesCache = null;
+async function loadAllProfiles() {
+  if (allProfilesCache) return allProfilesCache;
+  const snap = await getDocs(query(profilesCol));
+  const list = [];
+  snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+  allProfilesCache = list;
+  return list;
+}
+function invalidateProfilesCache() {
+  allProfilesCache = null;
 }
 
 /* ---------- Rankings ---------- */
@@ -442,13 +455,13 @@ async function loadRanking(mode) {
 
     rows = [...rows].sort((a, b) => b.distance - a.distance).slice(0, 50);
 
-    // 本人の投稿だけ削除できるようにするため、自分のuidと自分のプロフィールIDを取得しておく
-    let myProfileId = null;
-    if (currentUser) {
-      const own = await getOwnProfileSnap();
-      myProfileId = own ? own.id : null;
-    }
-    renderLeaderboard(rows, myProfileId);
+    const profiles = await loadAllProfiles();
+    const profileByOwnerUid = {};
+    profiles.forEach((p) => {
+      if (p.ownerUid) profileByOwnerUid[p.ownerUid] = p;
+    });
+
+    renderLeaderboard(rows, profileByOwnerUid);
   } catch (err) {
     tbody.innerHTML = emptyRow(5, t("loadError") + err.message);
   }
@@ -461,7 +474,7 @@ function populateFilterOptions(selectEl, values) {
   if (unique.includes(current)) selectEl.value = current;
 }
 
-function renderLeaderboard(rows, myProfileId) {
+function renderLeaderboard(rows, profileByOwnerUid) {
   const tbody = document.querySelector("#leaderboard-table tbody");
   if (!rows.length) {
     tbody.innerHTML = emptyRow(5, t("emptyRanking"));
@@ -473,23 +486,20 @@ function renderLeaderboard(rows, myProfileId) {
       if (i === 0) rank = "🥇";
       else if (i === 1) rank = "🥈";
       else if (i === 2) rank = "🥉";
-      const hasProfile = !!e.profileName;
-      const player = hasProfile ? e.profileName : e.killer;
-      // 削除は「本人の投稿」だけ許可する:
-      // ・ownerUid が自分のuidと一致する（新しい投稿）
-      // ・または profileId が自分のプロフィールと一致する（自分のプロフィールに紐付いた投稿）
-      // ・どちらも無い古いテストデータ（誰の投稿か特定できないもの）はログイン中なら整理してよいことにする
-      const isAnonymousLegacy = !e.ownerUid && !e.profileId;
-      const isMine =
-        currentUser &&
-        (isAnonymousLegacy ||
-          (e.ownerUid && e.ownerUid === currentUser.uid) ||
-          (myProfileId && e.profileId === myProfileId));
+
+      // 表示名の決定: ownerUidからプロフィールを引けるならそれを最優先（自己修復）。
+      // 次点でアップロード時にタグ付けされたprofileName、それも無ければゲームID。
+      const matchedProfile = e.ownerUid ? profileByOwnerUid[e.ownerUid] : null;
+      const profile = matchedProfile || (e.profileId ? { id: e.profileId, name: e.profileName } : null);
+      const hasProfile = !!(profile && profile.name);
+      const player = hasProfile ? profile.name : e.killer;
+
+      const isMine = currentUser && e.ownerUid && e.ownerUid === currentUser.uid;
       const deleteBtn = isMine
         ? `<button class="delete-record-btn" data-id="${e.id}">${t("deleteRecordBtn")}</button>`
         : "";
       const profileBtn = hasProfile
-        ? `<button class="view-profile-btn" data-profile-id="${escapeAttr(e.profileId)}">${t("viewProfileBtn")}</button>`
+        ? `<button class="view-profile-btn" data-profile-id="${escapeAttr(profile.id)}">${t("viewProfileBtn")}</button>`
         : "";
       return `
         <tr class="rank-${i + 1}">
@@ -566,9 +576,8 @@ async function loadProfileList() {
   }
 
   profileCards.innerHTML = t("loading");
-  const snap = await getDocs(query(profilesCol));
-  const profiles = [];
-  snap.forEach((d) => profiles.push({ id: d.id, ...d.data() }));
+  invalidateProfilesCache();
+  const profiles = await loadAllProfiles();
   profiles.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
   refreshProfileSelect(profiles);
@@ -653,6 +662,7 @@ saveProfileBtn.addEventListener("click", async () => {
   if (editingProfileId) {
     // 名前は変更不可なので送らない
     await updateDoc(doc(db, "profiles", editingProfileId), payload);
+    invalidateProfilesCache();
     openProfileDetail(editingProfileId);
   } else {
     const own = await getOwnProfileSnap();
@@ -665,6 +675,11 @@ saveProfileBtn.addEventListener("click", async () => {
     payload.ownerUid = currentUser.uid;
     payload.createdAt = serverTimestamp();
     const ref = await addDoc(profilesCol, payload);
+    invalidateProfilesCache();
+    // 作成直後、アップロード欄の「記録するプロフィール」に自分のプロフィールを即反映させる
+    const profiles = await loadAllProfiles();
+    refreshProfileSelect(profiles);
+    profileSelect.value = ref.id;
     openProfileDetail(ref.id);
   }
 });
@@ -700,7 +715,11 @@ async function openProfileDetail(id) {
 
   const tbody = document.querySelector("#profile-history-table tbody");
   tbody.innerHTML = emptyRow(5, t("loading"));
-  const histSnap = await getDocs(query(killsCol, where("profileId", "==", id)));
+  // profileId が正しくタグ付けされている記録に加えて、
+  // 選択し忘れて ownerUid だけ残っている過去の記録も拾い上げる（自己修復）
+  const histSnap = p.ownerUid
+    ? await getDocs(query(killsCol, or(where("profileId", "==", id), where("ownerUid", "==", p.ownerUid))))
+    : await getDocs(query(killsCol, where("profileId", "==", id)));
   const rows = [];
   histSnap.forEach((d) => rows.push({ id: d.id, ...d.data() }));
   rows.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
